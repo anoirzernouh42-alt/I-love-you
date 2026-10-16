@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Matrix Love</title>
+<style>
+  :root { box-sizing: border-box; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  html, body { margin: 0; height: 100%; background: #050505; overflow: hidden; }
+  canvas { display: block; width: 100%; height: 100%; }
+  #msg { position: fixed; left: 0; right: 0; bottom: calc(70px + env(safe-area-inset-bottom, 0px)); text-align: center;
+    color: #7dff9a; font: 24px system-ui, sans-serif; opacity: 0; transition: opacity 2s; }
+  button { position: fixed; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%);
+    background: transparent; color: #4dff7a; border: 1px solid #4dff7a; border-radius: 999px;
+    padding: 8px 22px; font: 15px system-ui, sans-serif; cursor: pointer; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="msg">نحبك مرام 💚</div>
+<button id="again">إعادة ↻</button>
+<script>
+const words = ["نحبك مرام","I love you Maram","Je t'aime Maram","Te amo Maram","Ich liebe dich Maram","Ti amo Maram",
+"Eu te amo Maram","Σ' αγαπώ Maram","Я тебя люблю Maram","愛してる Maram","我爱你 Maram","사랑해 Maram",
+"Seni seviyorum Maram","Aku cinta kamu Maram","Anh yêu em Maram","Ik hou van jou Maram","Jag älskar dig Maram",
+"Kocham cię Maram","मैं तुमसे प्यार करता हूँ Maram","ฉันรักเธอ Maram","Я тебе кохаю Maram","Ég elska þig Maram",
+"دوستت دارم Maram","Nakupenda Maram","Te iubesc Maram","Miluji tě Maram","Szeretlek Maram","Rakastan sinua Maram",
+"Jeg elsker deg Maram","Mahal kita Maram","Të dua Maram","আমি তোমাকে ভালোবাসি Maram"];
+const chars = Array.from(new Set(words.join('').replace(/\s/g, ''))).concat(['♥']);
+const rnd = () => chars[Math.floor(Math.random() * chars.length)];
+const cv = document.getElementById('c'), ctx = cv.getContext('2d'), msg = document.getElementById('msg');
+let cols, rows, cs, ch, br, lk, mask, heads, t0, last, raf;
+const LOCK_AFTER = 1500, SPAWN_END = 10000;
+
+function setup() {
+  const dpr = window.devicePixelRatio || 1, W = innerWidth, H = innerHeight;
+  cv.width = W * dpr; cv.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  cs = Math.max(12, Math.min(20, W / 26));
+  cols = Math.ceil(W / cs); rows = Math.ceil(H / cs);
+  const n = cols * rows;
+  ch = new Array(n).fill('♥'); br = new Float32Array(n); lk = new Uint8Array(n); mask = new Uint8Array(n);
+  const s = Math.min(W / 2.5, H / 2.9), cx = W / 2, cy = H / 2 + 0.1 * s;
+  for (let c = 0; c < cols; c++) for (let r = 0; r < rows; r++) {
+    const u = (c * cs + cs / 2 - cx) / s, v = (cy - (r * cs + cs / 2)) / s;
+    mask[c * rows + r] = Math.pow(u*u + v*v - 1, 3) - u*u*v*v*v <= 0 ? 1 : 0;
+  }
+  heads = Array.from({ length: cols }, () => ({ y: -Math.random() * rows, v: 12 + Math.random() * 14, on: true }));
+}
+
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000), el = now - t0; last = now;
+  for (let c = 0; c < cols; c++) {
+    const h = heads[c];
+    if (!h.on) continue;
+    const prev = Math.floor(h.y); h.y += h.v * dt;
+    for (let r = prev + 1; r <= Math.floor(h.y); r++) {
+      if (r < 0 || r >= rows) continue;
+      const i = c * rows + r; br[i] = 1; ch[i] = rnd();
+      if (mask[i] && el > LOCK_AFTER) lk[i] = 1;
+    }
+    if (h.y > rows + 2) {
+      if (el < SPAWN_END) { h.y = -Math.random() * rows * 0.6; h.v = 12 + Math.random() * 14; } else h.on = false;
+    }
+  }
+  if (el > 9000) msg.style.opacity = 1;
+  ctx.clearRect(0, 0, innerWidth, innerHeight);
+  ctx.font = `700 ${cs * 0.85}px system-ui, "Noto Sans", sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.direction = 'ltr';
+  const pulse = 0.75 + 0.25 * Math.abs(Math.sin(now / 450));
+  for (let c = 0; c < cols; c++) for (let r = 0; r < rows; r++) {
+    const i = c * rows + r;
+    if (lk[i]) {
+      if (Math.random() < 0.004) ch[i] = rnd();
+      ctx.fillStyle = `hsla(135, 90%, 55%, ${pulse})`;
+    } else {
+      br[i] = Math.max(0, br[i] - dt * 1.1);
+      if (br[i] < 0.03) continue;
+      ctx.fillStyle = br[i] > 0.92 ? '#e6ffec' : `hsla(135, 85%, 45%, ${br[i]})`;
+    }
+    ctx.fillText(ch[i], c * cs + cs / 2, r * cs + cs / 2);
+  }
+  raf = requestAnimationFrame(frame);
+}
+
+function play() {
+  cancelAnimationFrame(raf); setup(); msg.style.opacity = 0;
+  t0 = last = performance.now(); raf = requestAnimationFrame(frame);
+}
+document.getElementById('again').onclick = play;
+addEventListener('resize', play);
+play();
+</script>
+</body>
+</html>
